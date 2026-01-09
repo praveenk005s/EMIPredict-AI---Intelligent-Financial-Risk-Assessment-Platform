@@ -1,7 +1,9 @@
 import sys
 from pathlib import Path
 
-# 🔥 CRITICAL FIX
+# ==================================================
+# PATH SETUP (CRITICAL FOR STREAMLIT CLOUD)
+# ==================================================
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.append(str(BASE_DIR))
 
@@ -10,23 +12,20 @@ import pandas as pd
 import numpy as np
 import joblib
 
-
 from scripts.business_rules import business_rule_eligibility
-
 
 # ==================================================
 # PAGE CONFIG
 # ==================================================
 st.set_page_config(
     page_title="EMIPredict AI",
-    layout="wide",
-    page_icon="💳"
+    page_icon="💳",
+    layout="wide"
 )
 
 # ==================================================
 # PATHS
 # ==================================================
-BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
 DATA_DIR = BASE_DIR / "data"
 
@@ -34,16 +33,19 @@ PIPELINE_PATH = MODEL_DIR / "feature_pipeline.pkl"
 FEATURE_COLS_PATH = MODEL_DIR / "feature_columns.pkl"
 LABEL_ENCODER_PATH = MODEL_DIR / "label_encoder.pkl"
 
+CLASSIFIER_PATH = BASE_DIR / "best_classifier.pkl"
+REGRESSOR_PATH = BASE_DIR / "best_regressor.pkl"
 
+ADMIN_DATA_PATH = DATA_DIR / "admin_applications.csv"
+DATA_DIR.mkdir(exist_ok=True)
 
 # ==================================================
-# LOAD MODELS & ASSETS
+# LOAD MODELS
 # ==================================================
 @st.cache_resource
 def load_models():
-    clf = joblib.load("best_classifier.pkl")
-    reg = joblib.load("best_regressor.pkl")
-
+    clf = joblib.load(CLASSIFIER_PATH)
+    reg = joblib.load(REGRESSOR_PATH)
     return clf, reg
 
 @st.cache_resource
@@ -64,9 +66,8 @@ page = st.sidebar.radio(
     [
         "🏠 Single Prediction",
         "📂 Batch Prediction",
-        "📊 Model Monitoring",
         "📈 EDA",
-        "🛠 Admin Panel",   # 👈 ADD THIS
+        "🛠 Admin Panel",
         "🧠 Model Info"
     ]
 )
@@ -77,7 +78,7 @@ page = st.sidebar.radio(
 st.markdown("""
 <div style="background:#111827;padding:15px;border-radius:10px">
 <h2 style="color:white">💳 EMIPredict AI</h2>
-<p style="color:#9CA3AF">Enterprise EMI Eligibility & Risk Assessment Platform</p>
+<p style="color:#9CA3AF">Production-Ready EMI Eligibility & Financial Risk Platform</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -101,7 +102,7 @@ if page == "🏠 Single Prediction":
 
         requested_amount = c1.number_input("Requested Loan (₹)", 0, 5000000, 500000)
         requested_tenure = c2.number_input("Tenure (Months)", 1, 240, 24)
-        credit_score = c3.number_input("Credit Score", 300, 900, 720)
+        credit_score = c3.number_input("CIBIL Score", 300, 900, 720)
 
         education = c1.selectbox("Education", ["Professional", "Graduate", "High School", "Post Graduate"])
         company_type = c2.selectbox("Company Type", ["Mid-size", "MNC", "Startup", "Large Indian", "Small"])
@@ -119,30 +120,26 @@ if page == "🏠 Single Prediction":
         other_monthly_expenses = c2.number_input("Other Monthly Expenses", 0, 1000000, 0)
         current_emi_amount = c3.number_input("Current EMI Amount", 0, 1000000, 0)
 
-        existing_loans = c1.selectbox("Existing Loans", ["No" ,"Yes"])
-
+        existing_loans = c1.selectbox("Existing Loans", ["No", "Yes"])
 
         submit = st.form_submit_button("🚀 Predict")
 
     if submit:
-        # ==================================================
-        # BUSINESS RULE ENGINE (BANK FIRST)
-        # ==================================================
+        # ---------------- BUSINESS RULES ----------------
         rule_input = {
-        "credit_score": credit_score,
-        "existing_loans": existing_loans,
-        "monthly_salary": monthly_salary,
-        "monthly_rent": monthly_rent,
-        "school_fees": school_fees,
-        "college_fees": college_fees,
-        "travel_expenses": travel_expenses,
-        "groceries_utilities": groceries_utilities,
-        "other_monthly_expenses": other_monthly_expenses,
-        "current_emi_amount": current_emi_amount,
-        "requested_amount": requested_amount,
-        "requested_tenure": requested_tenure
-    }
-
+            "credit_score": credit_score,
+            "existing_loans": existing_loans,
+            "monthly_salary": monthly_salary,
+            "monthly_rent": monthly_rent,
+            "school_fees": school_fees,
+            "college_fees": college_fees,
+            "travel_expenses": travel_expenses,
+            "groceries_utilities": groceries_utilities,
+            "other_monthly_expenses": other_monthly_expenses,
+            "current_emi_amount": current_emi_amount,
+            "requested_amount": requested_amount,
+            "requested_tenure": requested_tenure
+        }
 
         rule_result = business_rule_eligibility(rule_input)
 
@@ -151,9 +148,7 @@ if page == "🏠 Single Prediction":
             st.warning(rule_result["reason"])
             st.stop()
 
-        # ==================================================
-        # ML FEATURE ENGINEERING
-        # ==================================================
+        # ---------------- ML FEATURES ----------------
         df = pd.DataFrame([{
             "age": age,
             "gender": gender,
@@ -194,7 +189,7 @@ if page == "🏠 Single Prediction":
             df["monthly_salary"] * df["requested_tenure"] + 1e-6
         )
 
-        df["credit_risk_score"] = df["credit_score"] / 850
+        df["credit_risk_score"] = df["credit_score"] / 900
         df["income_x_credit"] = df["monthly_salary"] * df["credit_score"]
 
         df["employment_stability"] = np.where(
@@ -207,9 +202,7 @@ if page == "🏠 Single Prediction":
         X = pipeline.transform(df)
         X = pd.DataFrame(X, columns=FEATURE_COLUMNS)
 
-        # ==================================================
-        # ML PREDICTIONS
-        # ==================================================
+        # ---------------- PREDICTION ----------------
         class_id = int(classifier.predict(X)[0])
         eligibility = label_encoder.inverse_transform([class_id])[0]
         max_emi = float(regressor.predict(X)[0])
@@ -222,203 +215,39 @@ if page == "🏠 Single Prediction":
         col2.info(f"Requested EMI: ₹{rule_result['requested_emi']:,}")
 
 # ==================================================
-# BATCH PREDICTION
-# ==================================================
-elif page == "📂 Batch Prediction":
-
-    st.subheader("📤 Batch Prediction")
-
-    file = st.file_uploader("Upload CSV", type=["csv"])
-
-    if file:
-        df = pd.read_csv(file)
-
-        # Ensure required columns exist
-        for col in pipeline.feature_names_in_:
-            if col not in df.columns:
-                df[col] = 0
-
-
-        X = pipeline.transform(df)
-
-        df["emi_eligibility"] = label_encoder.inverse_transform(
-            classifier.predict(X).astype(int)
-        )
-        df["max_monthly_emi"] = regressor.predict(X)
-
-        st.dataframe(df.head())
-        st.download_button(
-            "⬇ Download Results",
-            df.to_csv(index=False),
-            "emi_predictions.csv"
-        )
-
-# ==================================================
-# MODEL MONITORING
-# ==================================================
-elif page == "📊 Model Monitoring":
-
-    st.subheader("📈 Model Monitoring (MLflow)")
-    st.markdown("""
-    - Accuracy, Precision, Recall, F1-Score  
-    - RMSE, MAE, R²  
-    - Model versioning & experiments  
-    """)
-
-    st.info("Open MLflow UI → http://127.0.0.1:5000")
-
-# ==================================================
-# EDA
-# ==================================================
-elif page == "📈 EDA":
-
-    st.subheader("📊 Exploratory Data Analysis")
-
-    data_path = DATA_DIR / "EMI_dataset_clean.csv"
-    if data_path.exists():
-        df = pd.read_csv(data_path)
-        st.write("Dataset Shape:", df.shape)
-        st.dataframe(df.sample(300))
-        st.bar_chart(df["emi_eligibility"].value_counts())
-    else:
-        st.warning("Dataset not found")
-
-# ==================================================
 # ADMIN PANEL (CRUD)
 # ==================================================
 elif page == "🛠 Admin Panel":
 
     st.subheader("🛠 Admin Panel – Loan Applications")
 
-    ADMIN_DATA_PATH = DATA_DIR / "admin_applications.csv"
-
-    # ------------------------------
-    # Load or create admin dataset
-    # ------------------------------
     if ADMIN_DATA_PATH.exists():
         admin_df = pd.read_csv(ADMIN_DATA_PATH)
     else:
         admin_df = pd.DataFrame(columns=[
-            "application_id",
-            "age",
-            "monthly_salary",
-            "credit_score",
-            "requested_amount",
-            "requested_tenure",
-            "emi_eligibility",
-            "status"
+            "application_id", "monthly_salary", "credit_score",
+            "requested_amount", "status"
         ])
 
-    # ------------------------------
-    # VIEW
-    # ------------------------------
-    st.markdown("### 📄 Existing Applications")
     st.dataframe(admin_df, use_container_width=True)
 
-    # ------------------------------
-    # CREATE
-    # ------------------------------
-    st.markdown("### ➕ Add New Application")
-
-    with st.form("add_application"):
+    with st.form("add_app"):
         app_id = st.text_input("Application ID")
-        age = st.number_input("Age", 18, 80, 30)
         salary = st.number_input("Monthly Salary", 0, 500000, 60000)
-        credit = st.number_input("Credit Score", 300, 900, 720)
+        credit = st.number_input("CIBIL Score", 300, 900, 720)
         loan_amt = st.number_input("Requested Amount", 0, 5000000, 500000)
-        tenure = st.number_input("Tenure (Months)", 1, 240, 24)
 
-        submitted = st.form_submit_button("➕ Create")
-
-        if submitted:
-            new_row = {
-                "application_id": app_id,
-                "age": age,
-                "monthly_salary": salary,
-                "credit_score": credit,
-                "requested_amount": loan_amt,
-                "requested_tenure": tenure,
-                "emi_eligibility": "Pending",
-                "status": "New"
-            }
-
-            admin_df = pd.concat(
-                [admin_df, pd.DataFrame([new_row])],
-                ignore_index=True
-            )
-
-            admin_df.to_csv(ADMIN_DATA_PATH, index=False)
-            st.success("✅ Application Added")
-
-    # ------------------------------
-    # UPDATE
-    # ------------------------------
-    st.markdown("### ✏ Update Application")
-
-    if not admin_df.empty:
-        selected_id = st.selectbox(
-            "Select Application ID",
-            admin_df["application_id"]
-        )
-
-        record = admin_df[admin_df["application_id"] == selected_id].iloc[0]
-
-        new_salary = st.number_input(
-            "Update Monthly Salary",
-            0, 500000,
-            int(record["monthly_salary"])
-        )
-
-        new_credit = st.number_input(
-            "Update Credit Score",
-            300, 900,
-            int(record["credit_score"])
-        )
-
-        if st.button("💾 Update"):
-            admin_df.loc[
-                admin_df["application_id"] == selected_id,
-                ["monthly_salary", "credit_score"]
-            ] = [new_salary, new_credit]
-
-            admin_df.to_csv(ADMIN_DATA_PATH, index=False)
-            st.success("✅ Application Updated")
-
-    # ------------------------------
-    # DELETE
-    # ------------------------------
-    st.markdown("### 🗑 Delete Application")
-
-    if not admin_df.empty:
-        delete_id = st.selectbox(
-            "Select Application to Delete",
-            admin_df["application_id"],
-            key="delete_id"
-        )
-
-        if st.button("❌ Delete"):
-            admin_df = admin_df[
-                admin_df["application_id"] != delete_id
+        if st.form_submit_button("➕ Add"):
+            admin_df.loc[len(admin_df)] = [
+                app_id, salary, credit, loan_amt, "New"
             ]
             admin_df.to_csv(ADMIN_DATA_PATH, index=False)
-            st.warning("⚠ Application Deleted")
-
-    # ------------------------------
-    # EXPORT
-    # ------------------------------
-    st.markdown("### ⬇ Export Data")
-
-    st.download_button(
-        "Download Admin Data",
-        admin_df.to_csv(index=False),
-        "admin_applications.csv"
-    )
-        
+            st.success("Application Added")
 
 # ==================================================
 # MODEL INFO
 # ==================================================
 elif page == "🧠 Model Info":
-    st.success("✔ Business Rules Engine")
-    st.success("✔ MLflow Production Models")
-    st.success("✔ Banking-grade Decision System")
+    st.success("✔ Banking Rules First")
+    st.success("✔ ML for Risk Refinement")
+    st.success("✔ Cloud-Ready Streamlit App")
