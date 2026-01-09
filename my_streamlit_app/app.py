@@ -233,9 +233,11 @@ elif page == "📂 Batch Prediction":
     if file:
         df = pd.read_csv(file)
 
-        for col, val in df.items():
+        # Ensure required columns exist
+        for col in pipeline.feature_names_in_:
             if col not in df.columns:
-                df[col] = val
+                df[col] = 0
+
 
         X = pipeline.transform(df)
 
