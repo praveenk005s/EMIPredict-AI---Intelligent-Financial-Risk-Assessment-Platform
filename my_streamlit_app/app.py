@@ -9,8 +9,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import mlflow
-import mlflow.pyfunc
+
 
 from scripts.business_rules import business_rule_eligibility
 
@@ -48,8 +47,9 @@ REGRESSOR_NAME = "EMIPredict_Regressor"
 # ==================================================
 @st.cache_resource
 def load_models():
-    clf = mlflow.pyfunc.load_model(f"models:/{CLASSIFIER_NAME}@production")
-    reg = mlflow.pyfunc.load_model(f"models:/{REGRESSOR_NAME}@production")
+    clf = joblib.load("best_classifier.pkl")
+    reg = joblib.load("best_regressor.pkl")
+
     return clf, reg
 
 @st.cache_resource
