@@ -34,13 +34,7 @@ PIPELINE_PATH = MODEL_DIR / "feature_pipeline.pkl"
 FEATURE_COLS_PATH = MODEL_DIR / "feature_columns.pkl"
 LABEL_ENCODER_PATH = MODEL_DIR / "label_encoder.pkl"
 
-# ==================================================
-# MLFLOW CONFIG
-# ==================================================
-mlflow.set_tracking_uri("http://127.0.0.1:5000")
 
-CLASSIFIER_NAME = "EMIPredict_Classifier"
-REGRESSOR_NAME = "EMIPredict_Regressor"
 
 # ==================================================
 # LOAD MODELS & ASSETS
